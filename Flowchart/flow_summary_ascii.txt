@@ -1,0 +1,53 @@
+# Keirin Data Update Tool Startup Flow
+
+## Startup Flow Overview
+
+1. When main.py is executed, first setup_application_logger() in logger.py is called to set up the logging environment
+2. KeirinUpdaterCore is initialized, and directory existence check and creation is performed
+3. app_core.startup() is called, and the application startup process is executed
+4. GUI module is imported, and the tkinter root window is created
+5. An instance of KeirinUpdaterGUI class is created, and GUI initialization is performed
+   - LogManager initialization
+   - Variable initialization
+   - Manager initialization
+   - Config file loading
+   - UI construction
+6. root.mainloop() is called, and the GUI event loop starts
+7. When the application ends, app_core.shutdown() is called and termination processing is executed
+
+## Flowchart
+
+flowchart.md contains:
+- Overall flow starting from main.py execution
+- KeirinUpdaterGUI initialization flow (subgraph)
+- Main loop and termination process
+- Error handling path
+
+## Component Relationship Diagram
+
+component_flowchart.md contains:
+- Main processing (main.py, logger.py, core/application.py, gui/keirin_updater_gui.py)
+- Core processing (core/application.py, database/keirin_database.py, config.py)
+- GUI related (log_manager.py, ui_builder.py, update_manager.py, db_initializer.py)
+- Update processing (api/winticket_api.py, api/yenjoy_api.py, services/update_service.py)
+- Dependencies and data flow between components
+
+## Sequence Diagram
+
+sequence_diagram.md contains:
+- Flow from user to application execution
+- Interactions between components
+- GUI initialization and configuration
+- Processing during event loop
+- Termination process flow
+
+## Main Component Roles
+
+1. main.py - Application entry point
+2. KeirinUpdaterCore - Application core, providing basic functionality
+3. KeirinUpdaterGUI - User interface and event handling
+4. LogManager - Log management and display
+5. UIBuilder - User interface construction
+6. KeirinDatabase - Database operations
+7. UpdateManager - Data update process management
+8. WinticketAPI/YenjoyAPI - External API integration 

@@ -1,0 +1,105 @@
+# Python関連ファイル
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# 仮想環境
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# ログファイル
+logs/*.log
+*.log
+
+# データベースファイル
+*.sqlite
+*.db
+*.duckdb
+
+# 一時ファイル
+temp/
+*.tmp
+*.temp
+
+# テストファイル
+test_*.py
+*_debug.py
+
+# 設定ファイル（機密情報含む）
+config/*.ini
+!config/config.py
+utils/config.ini
+
+# データファイル
+data/
+analysis/
+
+# エクスポートされたファイル
+*.csv
+*.json
+!requirements.txt
+!package*.json
+
+# エディタ関連
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS関連
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# Node.js関連（サブプロジェクト用）
+node_modules/
+package-lock.json
+pnpm-lock.yaml
+
+# 実行時生成ファイル
+output.log
+*.bak
+*.new
+*.utf8
+
+# その他の一時ファイル
+*.pyc
+*.pyo
+*.pyd
+.cache/
+
+# テスト用データベース
+test_db/
+
+# MySQL設定
+mysql_config.json
+config.ini 

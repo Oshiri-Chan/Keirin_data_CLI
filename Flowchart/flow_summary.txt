@@ -1,0 +1,53 @@
+# 競輪データ更新ツール 起動フロー
+
+## 起動フロー概要
+
+1. main.pyが実行されると、まずlogger.pyのsetup_application_logger()が呼び出されログ環境が整います
+2. KeirinUpdaterCoreが初期化され、必要なディレクトリの存在確認と作成が行われます
+3. app_core.startup()が呼び出され、アプリケーションの起動処理が実行されます
+4. GUIモジュールがインポートされ、tkinterのルートウィンドウが作成されます
+5. KeirinUpdaterGUIクラスのインスタンスが作成され、GUIの初期化が行われます
+   - LogManagerの初期化
+   - 変数の初期化
+   - 各種マネージャーの初期化
+   - 設定ファイルの読み込み
+   - UIの構築
+6. root.mainloop()が呼び出され、GUIのイベントループが開始します
+7. アプリケーション終了時にはapp_core.shutdown()が呼び出され、終了処理が実行されます
+
+## フローチャート
+
+flowchart.md には以下の内容が含まれています:
+- main.py実行から始まる全体のフロー
+- KeirinUpdaterGUIの初期化フロー（サブグラフ）
+- メインループと終了処理
+- エラー処理パス
+
+## コンポーネント間の関係図
+
+component_flowchart.md には以下の内容が含まれています:
+- メイン処理（main.py, logger.py, core/application.py, gui/keirin_updater_gui.py）
+- コア処理（core/application.py, database/keirin_database.py, config.py）
+- GUI関連（log_manager.py, ui_builder.py, update_manager.py, db_initializer.py）
+- 更新処理（api/winticket_api.py, api/yenjoy_api.py, services/update_service.py）
+- コンポーネント間の依存関係とデータフロー
+
+## シーケンス図
+
+sequence_diagram.md には以下の内容が含まれています:
+- ユーザーからアプリケーション実行の流れ
+- 各コンポーネント間の相互作用
+- GUIの初期化と設定
+- イベントループ中の処理
+- 終了処理の流れ
+
+## 主要コンポーネントの役割
+
+1. main.py - アプリケーションのエントリーポイント
+2. KeirinUpdaterCore - アプリケーションコア、基本機能の提供
+3. KeirinUpdaterGUI - ユーザーインターフェースとイベント処理
+4. LogManager - ログ管理と表示
+5. UIBuilder - ユーザーインターフェースの構築
+6. KeirinDatabase - データベース操作
+7. UpdateManager - データ更新処理の管理
+8. WinticketAPI/YenjoyAPI - 外部APIとの連携 

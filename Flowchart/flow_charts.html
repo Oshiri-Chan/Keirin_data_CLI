@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>競輪データ更新ツール フローチャート</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            color: #333;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1, h2, h3 {
+            color: #2c3e50;
+        }
+        h1 {
+            text-align: center;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+            margin-bottom: 30px;
+        }
+        .chart-container {
+            margin: 30px 0;
+            padding: 20px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .desc {
+            margin-bottom: 20px;
+            line-height: 1.6;
+        }
+        .footer {
+            margin-top: 50px;
+            text-align: center;
+            font-size: 0.9em;
+            color: #7f8c8d;
+            border-top: 1px solid #ecf0f1;
+            padding-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>競輪データ更新ツール フローチャート</h1>
+        
+        <div class="desc">
+            <p>このドキュメントは競輪データ更新ツールの起動からGUI表示までのフローチャートとコンポーネント間の関係図を示しています。</p>
+        </div>
+
+        <h2>起動フロー概要</h2>
+        <div class="desc">
+            <ol>
+                <li>main.pyが実行されると、まずlogger.pyのsetup_application_logger()が呼び出されログ環境が整います</li>
+                <li>KeirinUpdaterCoreが初期化され、必要なディレクトリの存在確認と作成が行われます</li>
+                <li>app_core.startup()が呼び出され、アプリケーションの起動処理が実行されます</li>
+                <li>GUIモジュールがインポートされ、tkinterのルートウィンドウが作成されます</li>
+                <li>KeirinUpdaterGUIクラスのインスタンスが作成され、GUIの初期化が行われます
+                    <ul>
+                        <li>LogManagerの初期化</li>
+                        <li>変数の初期化</li>
+                        <li>各種マネージャーの初期化</li>
+                        <li>設定ファイルの読み込み</li>
+                        <li>UIの構築</li>
+                    </ul>
+                </li>
+                <li>root.mainloop()が呼び出され、GUIのイベントループが開始します</li>
+                <li>アプリケーション終了時にはapp_core.shutdown()が呼び出され、終了処理が実行されます</li>
+            </ol>
+        </div>
+        
+        <h2>メインフローチャート</h2>
+        <div class="chart-container">
+            <div class="mermaid">
+flowchart TB
+    A[開始: main.py実行] --> B[setup_application_logger実行]
+    B --> C[ロギング初期化]
+    C --> D[KeirinUpdaterCore初期化]
+    D --> E[必要なディレクトリの作成確認]
+    E --> F[app_core.startup実行]
+    F --> G[GUIパッケージのインポート]
+    G --> H[tkinter rootウィンドウ作成]
+    H --> I[KeirinUpdaterGUI初期化]
+    
+    subgraph KeirinUpdaterGUI初期化フロー
+        I --> I1[_init_logging実行]
+        I1 --> I2[LogManager初期化]
+        I2 --> I3[_init_variables実行]
+        I3 --> I4[_init_managers実行]
+        I4 --> I5[設定ファイル読み込み]
+        I5 --> I6[UIビルダーによるUI構築]
+        I6 --> I7[ウィンドウ終了処理設定]
+        I7 --> I8[初期メッセージ表示]
+    end
+    
+    I8 --> J[root.mainloop実行]
+    J --> K[GUIメインループ開始]
+    K --> L[アプリケーション終了時]
+    L --> M[app_core.shutdown実行]
+    M --> N[終了]
+    
+    %% エラー処理パス
+    C -- エラー発生 --> O[エラーログ出力]
+    D -- エラー発生 --> O
+    F -- エラー発生 --> O
+    G -- エラー発生 --> O
+    H -- エラー発生 --> O
+    I -- エラー発生 --> O
+    O --> P{GUIが起動済み?}
+    P -- はい --> Q[エラーダイアログ表示]
+    P -- いいえ --> R[コンソールにエラー表示]
+    Q --> S[異常終了]
+    R --> S
+            </div>
+        </div>
+        
+        <h2>コンポーネント間の関係図</h2>
+        <div class="chart-container">
+            <div class="mermaid">
+flowchart TB
+    subgraph メイン処理
+        main[main.py] --> logger[utils/logger.py]
+        main --> core[core/application.py]
+        main --> gui[gui/keirin_updater_gui.py]
+    end
+    
+    subgraph コア処理
+        core --> db[database/keirin_database.py]
+        core --> config[config.py]
+    end
+    
+    subgraph GUI
+        gui --> log_manager[gui/log_manager.py]
+        gui --> ui_builder[gui/ui_builder.py]
+        gui --> update_manager[gui/update_manager.py]
+        gui --> database_init[database/db_initializer.py]
+        database_init --> db
+    end
+    
+    subgraph 更新処理
+        update_manager --> api1[api/winticket_api.py]
+        update_manager --> api2[api/yenjoy_api.py]
+        update_manager --> update_service[services/update_service.py]
+        update_service --> db
+    end
+    
+    %% コンポーネント間の関係
+    logger -.-> log_manager
+    db -.-> update_service
+    config -.-> gui
+    
+    %% データフロー
+    api1 --データ取得--> update_service
+    api2 --データ取得--> update_service
+    update_service --データ保存--> db
+    db --データ読み込み--> gui
+            </div>
+        </div>
+        
+        <h2>起動時シーケンス図</h2>
+        <div class="chart-container">
+            <div class="mermaid">
+sequenceDiagram
+    participant User as ユーザー
+    participant Main as main.py
+    participant Logger as utils/logger.py
+    participant Core as KeirinUpdaterCore
+    participant GUI as KeirinUpdaterGUI
+    participant LogManager as LogManager
+    participant UIBuilder as UIBuilder
+    participant DB as KeirinDatabase
+    
+    User->>Main: アプリケーション実行
+    Main->>Logger: setup_application_logger()
+    Logger-->>Main: logger返却
+    Main->>Core: KeirinUpdaterCore初期化
+    Core->>Core: _ensure_directories()
+    Core-->>Main: app_core返却
+    Main->>Core: app_core.startup()
+    Core-->>Main: 起動処理完了
+    
+    Main->>GUI: KeirinUpdaterGUI初期化
+    GUI->>LogManager: LogManager初期化
+    LogManager-->>GUI: log_manager返却
+    GUI->>GUI: _init_variables()
+    GUI->>GUI: _init_managers()
+    GUI->>DB: データベース接続確認
+    DB-->>GUI: 接続結果返却
+    GUI->>GUI: _load_config()
+    GUI->>UIBuilder: UI構築
+    UIBuilder-->>GUI: UI構築完了
+    GUI-->>Main: GUI初期化完了
+    
+    Main->>Main: root.mainloop()
+    Note over Main,GUI: GUIイベントループ開始
+    
+    User->>GUI: GUIとの対話
+    GUI->>DB: データ操作
+    DB-->>GUI: 結果返却
+    GUI->>User: 表示更新
+    
+    User->>GUI: 終了操作
+    GUI->>Main: 終了通知
+    Main->>Core: app_core.shutdown()
+    Core-->>Main: 終了処理完了
+    Main-->>User: アプリケーション終了
+            </div>
+        </div>
+
+        <h2>更新処理フローチャート</h2>
+        <div class="desc">
+            <p>更新ボタンが押されてから、データベースへの書き込み処理までの流れを示します。</p>
+        </div>
+        <div class="chart-container">
+            <div class="mermaid">
+flowchart TB
+    A[更新ボタン押下] --> B[KeirinUpdaterGUI._update_button実行]
+    B --> C[入力値の検証]
+    C -->|不正な値| D[エラーメッセージ表示]
+    C -->|正常| E[更新モード判定]
+    
+    %% 更新モード判定
+    E -->|単一日モード| F1[単一日処理]
+    E -->|期間モード| F2[期間処理]
+    E -->|全期間モード| F3[全期間処理]
+    
+    %% 更新マネージャー初期化と起動
+    F1 --> G1[_update_single_day実行]
+    F2 --> G2[_update_period実行]
+    F3 --> G3[_update_all実行]
+    
+    G1 --> H[UpdateManager初期化]
+    G2 --> H
+    G3 --> H
+    
+    H --> I[UpdateManager.start_update実行]
+    I --> J[更新オプション設定]
+    J --> K[バックグラウンドスレッド作成]
+    K --> L[UpdateManager._run_update実行]
+    
+    %% 更新処理の流れ
+    subgraph 更新処理スレッド
+        L --> M[データベース初期化確認]
+        M -->|初期化失敗| N1[エラー通知]
+        M -->|初期化成功| N2[更新モードに応じた処理]
+        
+        N2 -->|単一日| O1[UpdateService.update_single_day実行]
+        N2 -->|期間| O2[UpdateService.update_period実行]
+        N2 -->|全期間| O3[UpdateService.update_all実行]
+        
+        subgraph 更新ステップ
+            O1 --> P1[Step1: 開催情報取得]
+            P1 --> P2[Step2: 開催詳細取得]
+            P2 --> P3[Step3: レース情報取得]
+            P3 --> P4[Step4: オッズ情報取得]
+            P4 --> P5[Step5: Yenjoy結果取得]
+        end
+        
+        P5 --> Q[更新完了通知]
+    end
+    
+    %% データ書き込み処理
+    subgraph データベース書き込み処理
+        P1 -.-> DB1[Winticket APIからデータ取得]
+        DB1 -.-> DB2[データ形式変換]
+        DB2 -.-> DB3[KeirinDatabaseにデータ保存]
+        DB3 -.-> DB4[SQLiteデータベースへ書き込み]
+    end
+    
+    %% 進捗通知処理
+    Q --> R[UI更新]
+    R --> S[プログレスバー更新]
+    S --> T[完了ステータス表示]
+    
+    %% エラー処理
+    N1 --> U[エラーログ出力]
+    U --> V[エラーメッセージ表示]
+    
+    %% 自動更新処理（オプション）
+    T --> W{自動更新有効?}
+    W -->|はい| X[次回更新スケジュール]
+    W -->|いいえ| Y[終了]
+            </div>
+        </div>
+        
+        <h2>更新処理シーケンス図</h2>
+        <div class="desc">
+            <p>更新処理の各コンポーネント間の相互作用を時系列で示します。</p>
+        </div>
+        <div class="chart-container">
+            <div class="mermaid">
+sequenceDiagram
+    participant User as ユーザー
+    participant GUI as KeirinUpdaterGUI
+    participant UM as UpdateManager
+    participant US as UpdateService
+    participant API as APIクライアント
+    participant DB as KeirinDatabase
+    
+    User->>GUI: 更新ボタン押下
+    GUI->>GUI: _update_button()
+    GUI->>GUI: 入力値の検証
+    
+    alt 入力値が不正な場合
+        GUI-->>User: エラーメッセージ表示
+    else 入力値が正常な場合
+        GUI->>UM: _initialize_update_manager()
+        GUI->>UM: start_update(mode, date)
+        
+        activate UM
+        UM->>UM: 更新オプション設定
+        
+        %% スレッド作成とバックグラウンド実行
+        UM->>UM: _update_thread作成
+        UM->>UM: _run_update(mode, date)
+        
+        %% データベース初期化
+        UM->>DB: check_database()
+        DB-->>UM: 初期化状態
+        
+        alt データベース初期化失敗
+            UM-->>GUI: _update_status("初期化失敗")
+            GUI-->>User: エラーメッセージ表示
+        else データベース初期化成功
+            %% 更新サービス呼び出し
+            UM->>US: update_period/update_single_day
+            
+            activate US
+            
+            %% Step1: 開催情報取得
+            alt fetch_cups = true
+                US->>API: get_cups(date)
+                API-->>US: 開催情報
+                US->>DB: save_cups_data()
+                DB-->>US: 保存結果
+                US-->>UM: _progress_callback("Step1完了", 1, 5)
+                UM-->>GUI: UI更新
+            end
+            
+            %% Step2: 開催詳細取得
+            alt fetch_cup_details = true
+                US->>API: get_cup_details(cups)
+                API-->>US: 開催詳細情報
+                US->>DB: save_cup_details()
+                DB-->>US: 保存結果
+                US-->>UM: _progress_callback("Step2完了", 2, 5)
+                UM-->>GUI: UI更新
+            end
+            
+            %% Step3: レース情報取得
+            alt fetch_race_data = true
+                US->>API: get_race_data(races)
+                API-->>US: レース情報
+                US->>DB: save_race_data()
+                DB-->>US: 保存結果
+                US-->>UM: _progress_callback("Step3完了", 3, 5)
+                UM-->>GUI: UI更新
+            end
+            
+            %% Step4: オッズ情報取得
+            alt fetch_odds_data = true
+                US->>API: get_odds_data(races)
+                API-->>US: オッズ情報
+                US->>DB: save_odds_data()
+                DB-->>US: 保存結果
+                US-->>UM: _progress_callback("Step4完了", 4, 5)
+                UM-->>GUI: UI更新
+            end
+            
+            %% Step5: Yenjoy結果取得
+            alt fetch_yenjoy_results = true
+                US->>API: get_yenjoy_results(races)
+                API-->>US: Yenjoy結果
+                US->>DB: save_yenjoy_results()
+                DB-->>US: 保存結果
+                US-->>UM: _progress_callback("Step5完了", 5, 5)
+                UM-->>GUI: UI更新
+            end
+            
+            US-->>UM: 更新結果
+            deactivate US
+            
+            UM->>UM: _update_completed(success)
+        end
+        
+        UM-->>GUI: UI更新指示
+        deactivate UM
+        
+        GUI->>GUI: is_updating = false
+        GUI->>GUI: update_progress(false, "更新完了")
+        
+        alt 自動更新が有効
+            GUI->>GUI: _schedule_auto_update()
+        end
+    end
+    
+    GUI-->>User: 更新完了表示
+            </div>
+        </div>
+        
+        <h2>主要コンポーネントの役割</h2>
+        <div class="desc">
+            <ol>
+                <li><strong>main.py</strong> - アプリケーションのエントリーポイント</li>
+                <li><strong>KeirinUpdaterCore</strong> - アプリケーションコア、基本機能の提供</li>
+                <li><strong>KeirinUpdaterGUI</strong> - ユーザーインターフェースとイベント処理</li>
+                <li><strong>LogManager</strong> - ログ管理と表示</li>
+                <li><strong>UIBuilder</strong> - ユーザーインターフェースの構築</li>
+                <li><strong>KeirinDatabase</strong> - データベース操作</li>
+                <li><strong>UpdateManager</strong> - データ更新処理の管理</li>
+                <li><strong>UpdateService</strong> - データ更新処理の実行</li>
+                <li><strong>WinticketAPI/YenjoyAPI</strong> - 外部APIとの連携</li>
+            </ol>
+        </div>
+        
+        <div class="footer">
+            <p>作成日: <span id="current-date"></span></p>
+            <script>
+                document.getElementById("current-date").innerText = new Date().toLocaleDateString('ja-JP');
+                mermaid.initialize({
+                    startOnLoad: true,
+                    theme: 'default',
+                    themeCSS: '.node rect { fill: #f5f5f5; stroke: #333; }',
+                    flowchart: { useMaxWidth: true }
+                });
+            </script>
+        </div>
+    </div>
+</body>
+</html> 

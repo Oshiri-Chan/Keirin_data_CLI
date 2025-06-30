@@ -1,0 +1,66 @@
+.
+├── analysis/                        # データ分析用スクリプトを格納するディレクトリ
+├── api/                             # 外部APIとの通信を担当するモジュール群
+│   ├── __init__.py                  # APIパッケージの初期化ファイル
+│   ├── api_rate_limiter.py          # API呼び出しのレート制限を管理するモジュール
+│   ├── keirin_mappings.py           # 競輪データのマッピング定義
+│   ├── winticket_api.py             # WinticketのAPI通信を行うモジュール
+│   └── yenjoy_api.py                # YenjoyのAPI通信を行うモジュール
+├── core/                            # アプリケーションのコア機能を提供するモジュール群
+│   ├── __init__.py                  # コアパッケージの初期化ファイル
+│   └── application.py               # アプリケーションのメインロジックを実装
+├── data/                            # 取得したデータを保存するディレクトリ
+├── database/                        # データベース関連のモジュール群
+│   ├── __init__.py                  # データベースパッケージの初期化ファイル
+│   ├── db_accessor.py               # データベースへのアクセスを提供するモジュール
+│   ├── db_initializer.py            # データベースの初期化と設定を行うモジュール
+│   ├── keirin_data.mysql               # 競輪データ用MySQLデータベース接続設定
+│   ├── keirindata.mysql                # 追加の競輪データ用データベース設定
+│   ├── transaction_manager.py       # データベーストランザクションを管理するモジュール
+│   ├── shards/                      # データベースシャード（分割ファイル）を格納するディレクトリ
+│   └── temp_files/                  # 一時ファイルを格納するディレクトリ
+├── docs/                            # ドキュメントファイルを格納するディレクトリ
+│   ├── WinticketAPI.md              # Winticket APIの概要ドキュメント
+│   ├── WinticketCupDetailAPI.md     # Winticket 開催詳細APIのドキュメント
+│   ├── WinticketCupsAPI.md          # Winticket 開催一覧APIのドキュメント
+│   ├── WinticketDatabase.md         # Winticketデータベース設計ドキュメント
+│   ├── WinticketOddsAPI.md          # Winticket オッズAPIのドキュメント
+│   ├── WinticketRaceAPI.md          # Winticket レースAPIのドキュメント
+│   ├── YenjoyAPI.md                 # Yenjoy APIのドキュメント
+│   └── 仕様書.md                    # システム全体の仕様書
+├── duckdb/                          # DuckDB関連のファイルを格納するディレクトリ
+├── gui/                             # グラフィカルユーザーインターフェース関連ファイル
+├── logs/                            # ログファイルを格納するディレクトリ
+├── models/                          # データモデルを定義するモジュール群
+│   ├── __init__.py                  # モデルパッケージの初期化ファイル
+│   └── keirin_models.py             # 競輪データのモデルクラスを定義
+├── SampleJSON/                      # サンプルJSON応答を格納するディレクトリ
+├── scripts/                         # ユーティリティスクリプトを格納するディレクトリ
+├── services/                        # サービスレイヤーのモジュールを格納するディレクトリ
+├── utils/                           # ユーティリティ関数やツールを格納するディレクトリ
+│   ├── __init__.py                  # ユーティリティパッケージの初期化ファイル
+│   ├── date_util.py                 # 日付操作ユーティリティ
+│   ├── logger.py                    # ロギング機能を提供するモジュール
+│   └── winticket_cups_fetcher.py    # Winticketから開催情報を取得するモジュール
+├── analyze_data.py                  # データ分析を実行するスクリプト
+├── check_db.py                      # データベース整合性チェックを行うスクリプト
+├── clean_config.py                  # 設定ファイルをクリーンアップするスクリプト
+├── config.ini                       # アプリケーション設定ファイル
+├── config.ini.template              # 設定ファイルのテンプレート
+├── config.py                        # 設定読み込みと管理を行うモジュール
+├── cup_detail_response.json         # 開催詳細APIのサンプルレスポンス
+├── data_fix.log                     # データ修正操作のログファイル
+├── data_fix.py                      # データの修正を行うスクリプト
+├── db_files.txt                     # データベースファイル一覧
+├── debug_api.py                     # API通信をデバッグするためのスクリプト
+├── export_examples.py               # サンプルデータをエクスポートするスクリプト
+├── fetch_winticket_cups.py          # Winticketから開催情報を取得するスクリプト
+├── keirin_config.ini                # 競輪特有の設定ファイル
+├── keirin_db.py                     # 競輪データベースのレガシー操作モジュール
+├── keirin_mappings.py               # 競輪データのマッピング定義（レガシー）
+├── main.py                          # アプリケーションのエントリーポイント
+├── move_shards.py                   # データベースシャードの移動を行うスクリプト
+├── README.md                        # プロジェクトの概要と使用方法の説明
+├── requirements.txt                 # 必要なPythonパッケージの一覧
+├── shard_manager.py                 # データベースシャードの管理を行うスクリプト
+└── 競輪データ取得システム仕様書.md      # 競輪データ取得システムの詳細仕様書

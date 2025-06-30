@@ -1,0 +1,32 @@
+[flake8]
+max-line-length = 88
+ignore = E203, W503, E501
+per-file-ignores =
+    __init__.py: F401, E402
+    scripts/*.py: E402
+    gui/*.py: E402
+    # tests
+    */tests/*: E402, F401, F811
+exclude =
+    .git,
+    __pycache__,
+    venv,
+    */venv/*,
+    .venv,
+    */.venv/*,
+    node_modules,
+    */node_modules/*,
+    mysql_mcp_server,
+    step5_updater_old.py,
+    rebuild_step2_updater.py,
+    build,
+    */build/*,
+    dist,
+    */dist/*,
+    docs,
+    tests,
+    vendor,
+    */vendor/*
+count = True
+show-source = True
+statistics = True
