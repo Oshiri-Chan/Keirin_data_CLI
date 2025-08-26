@@ -57,9 +57,7 @@ class Step2Updater:
                 f"スレッド {thread_id}: 開催ID {cup_id} の詳細情報を取得開始"
             )
             # time.sleep(self.rate_limit_wait) # 呼び出し側でまとめて制御するため、ここでは不要かも
-            cup_detail_data = self.api.get_cup_detail(
-                cup_id
-            )  # APIクライアントのメソッド名に合わせる
+            cup_detail_data = self.api.get_cup_detail(cup_id)
 
             # ▼▼▼ APIレスポンスのより詳細なログ ▼▼▼
             if not cup_detail_data:

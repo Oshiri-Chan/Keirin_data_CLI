@@ -102,4 +102,8 @@ test_db/
 
 # MySQL設定
 mysql_config.json
-config.ini 
+config.ini
+
+# MCPサーバー
+mcp-server-mysql/
+mysql_mcp_server/ 

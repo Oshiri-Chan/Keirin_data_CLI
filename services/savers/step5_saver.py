@@ -414,6 +414,23 @@ class Step5Saver:
                     )
                     raise
 
+        # lap_positions が保存されたレースの is_processed を 1 に更新
+        try:
+            for processed_race_id in processed_race_ids:
+                self._save_lap_data_status_with_cursor(
+                    processed_race_id,
+                    {"is_processed": 1},
+                    cursor,
+                )
+            self.logger.info(
+                f"(Cursor) 周回データ保存済みの {len(processed_race_ids)} レースについて lap_data_status.is_processed=1 を設定"
+            )
+        except Exception as e:
+            self.logger.error(
+                f"(Cursor) lap_data_status の is_processed 更新中にエラー: {e}",
+                exc_info=True,
+            )
+
         # 処理完了ログ
         total_processed = sum(
             1 for sections in race_grouped_data.values() if any(sections.values())
@@ -779,118 +796,35 @@ class Step5Saver:
             f"レースID {race_id}: パースHTMLデータのアトミック保存処理を開始。"
         )
 
-        def _save_in_transaction(conn):  # cursor 引数を削除
-            cursor = None  # 初期化
+        def _save_in_transaction(conn, cursor):
             try:
-                cursor = conn.cursor(dictionary=True)  # conn からカーソルを取得
-                self.logger.info(
-                    f"(TX) レースID {race_id}: パースHTMLデータ保存開始 (トランザクション内)。"
-                )
-
-                # レース結果の保存
-                race_results = parsed_data.get("race_results")
-                if race_results is not None:  # Noneでない場合のみ処理 (空リストは許容)
-                    self.logger.debug(f"(TX) レースID {race_id}: レース結果を保存。")
-                    try:
-                        self._save_race_results_batch_with_cursor(
-                            race_id, race_results, cursor  # cursor を渡す
-                        )
-                    except Exception as e:
-                        self.logger.error(
-                            f"(TX) レースID {race_id} レース結果保存エラー: {e}",
-                            exc_info=True,
-                        )
-                        raise
-                else:
-                    self.logger.info(f"(TX) レースID {race_id}: レース結果データなし。")
-
-                # deadrock.ini の順序に合わせて race_comments を先に処理
-                race_comments = parsed_data.get("race_comments")
-                if race_comments is not None:
-                    self.logger.debug(
-                        f"(TX) レースID {race_id}: レースコメントを保存。"
+                # 受け取った cursor を使用し、parsed_data の実データだけを保存
+                if parsed_data and parsed_data.get("race_results"):
+                    self._save_race_results_batch_with_cursor(
+                        race_id,
+                        parsed_data["race_results"],
+                        cursor,
                     )
-                    try:
-                        self._save_race_comments_batch_with_cursor(
-                            race_id, race_comments, cursor  # cursor を渡す
-                        )
-                    except Exception as e:
-                        self.logger.error(
-                            f"(TX) レースID {race_id} レースコメント保存エラー: {e}",
-                            exc_info=True,
-                        )
-                        raise
-                else:
-                    self.logger.info(
-                        f"(TX) レースID {race_id}: レースコメントデータなし。"
+                if parsed_data and parsed_data.get("inspection_reports"):
+                    self._save_inspection_reports_batch_with_cursor(
+                        race_id,
+                        parsed_data["inspection_reports"],
+                        cursor,
                     )
-
-                # 次に lap_positions を処理
-                all_lap_records = parsed_data.get("lap_positions")
-                lap_positions_saved_successfully = False  # 周回情報保存成功フラグ
-                if all_lap_records is not None:
-                    self.logger.debug(f"(TX) レースID {race_id}: 周回位置情報を保存。")
-                    try:
-                        self._save_lap_positions_batch_with_cursor(
-                            all_lap_records, cursor
-                        )
-                        lap_positions_saved_successfully = True  # 保存成功
-                    except Exception as e:
-                        self.logger.error(
-                            f"(TX) レースID {race_id} 周回位置保存エラー: {e}",
-                            exc_info=True,
-                        )
-                        # raise # ここではraiseせず、他のデータ保存を試みる。最終的な成功/失敗は呼び出し元で判断。
-                else:
-                    self.logger.info(f"(TX) レースID {race_id}: 周回位置データなし。")
-
-                # 検査レポートの保存 (周回情報保存の後)
-                inspection_reports = parsed_data.get("inspection_reports")
-                if inspection_reports is not None:
-                    self.logger.debug(f"(TX) レースID {race_id}: 検査レポートを保存。")
-                    try:
-                        self._save_inspection_reports_batch_with_cursor(
-                            race_id, inspection_reports, cursor  # cursor を渡す
-                        )
-                    except Exception as e:
-                        self.logger.error(
-                            f"(TX) レースID {race_id} 検査レポート保存エラー: {e}",
-                            exc_info=True,
-                        )
-                        raise
-                else:
-                    self.logger.info(
-                        f"(TX) レースID {race_id}: 検査レポートデータなし。"
+                if parsed_data and parsed_data.get("race_comments"):
+                    self._save_race_comments_batch_with_cursor(
+                        race_id,
+                        parsed_data["race_comments"],
+                        cursor,
                     )
-
-                # lap_data_status の更新 (周回情報が保存成功した場合のみ is_processed = True)
-                self.logger.debug(
-                    f"(TX) レースID {race_id}: 周回データステータスを更新。"
-                )
-                try:
-                    current_time_utc = datetime.now(timezone.utc)
-                    # is_processed は lap_positions_saved_successfully の値で決定
-                    status_entry = {
-                        "is_processed": lap_positions_saved_successfully,
-                        "last_checked_at": current_time_utc.isoformat(),
-                    }
-                    self._save_lap_data_status_with_cursor(
-                        race_id, status_entry, cursor
+                if parsed_data and parsed_data.get("lap_positions"):
+                    self._save_lap_positions_batch_with_cursor(
+                        [{"race_id": race_id, "data": parsed_data["lap_positions"]}],
+                        cursor,
                     )
-                except Exception as e:
-                    self.logger.error(
-                        f"(TX) レースID {race_id} 周回データステータス保存/更新エラー: {e}",
-                        exc_info=True,
-                    )
-                    # raise # ここでもraiseせず、トランザクションの成否は全体で判断
-
-                self.logger.info(
-                    f"(TX) レースID {race_id}: 全パースHTMLデータの保存が正常に完了 (トランザクション内)。"
-                )
                 return True
-            finally:
-                if cursor:
-                    cursor.close()  # カーソルを閉じる
+            except Exception:
+                raise
 
         try:
             return self.accessor.execute_in_transaction(
@@ -919,42 +853,22 @@ class Step5Saver:
             )
             return
 
-        current_time_utc = datetime.now(timezone.utc)
-
-        def _update_status_in_transaction(conn):
+        def _update_status_in_transaction(conn, cursor):
             try:
-                with conn.cursor() as cursor:
-                    # is_processed は更新せず、last_checked_at のみ更新する
-                    # テーブルに race_id が存在しない場合は INSERT する
-                    update_query = """
-                        INSERT INTO lap_data_status (race_id, last_checked_at)
-                        VALUES (%s, %s)
-                        ON DUPLICATE KEY UPDATE
-                            last_checked_at = VALUES(last_checked_at)
-                    """
-                    params_list = []
-                    for race_id in race_ids:
-                        params_list.append((race_id, current_time_utc))
-
-                    if params_list:
-                        cursor.executemany(update_query, params_list)
-                        conn.commit()
-                        self.logger.info(
-                            f"{len(params_list)}件のレースIDについて lap_data_status の last_checked_at を更新しました。"
-                            f"現在の処理ステータス(ログ用): {status}"
-                        )
-                    else:
-                        # このケースは通常発生しないはず (race_idsが空でない限り)
-                        self.logger.info(
-                            "lap_data_status の last_checked_at を更新する有効なパラメータがありませんでした。"
-                        )
-
-            except Exception as e:
-                conn.rollback()
-                self.logger.error(
-                    f"lap_data_status の last_checked_at 更新中にエラーが発生しました: {e}",
-                    exc_info=True,
-                )
+                if race_ids:
+                    # lap_data_status に対して last_checked_at を更新（無ければ作成）
+                    upsert_sql = (
+                        "INSERT INTO lap_data_status (race_id, last_checked_at) "
+                        "VALUES (%s, NOW()) "
+                        "ON DUPLICATE KEY UPDATE last_checked_at = VALUES(last_checked_at)"
+                    )
+                    params_list = [(race_id,) for race_id in race_ids]
+                    cursor.executemany(upsert_sql, params_list)
+                    self.logger.info(
+                        f"{len(params_list)}件のレースIDについて lap_data_status.last_checked_at を更新/作成しました。ログ用status={status}"
+                    )
+                return True
+            except Exception:
                 raise
 
         try:
@@ -977,16 +891,11 @@ class Step5Saver:
             )
             return True  # データがない場合は成功扱い
 
-        def _save_results_in_transaction(conn):  # 引数を conn に変更
-            actual_cursor = None  # カーソル変数を初期化
-            try:
-                actual_cursor = conn.cursor(dictionary=True)  # conn からカーソルを取得
-                self._save_race_results_batch_with_cursor(
-                    race_id, race_results_data, actual_cursor  # 生成したカーソルを渡す
-                )
-            finally:
-                if actual_cursor:
-                    actual_cursor.close()  # カーソルをクローズ
+        def _save_results_in_transaction(conn, cursor):
+            self._save_race_results_batch_with_cursor(
+                race_id, race_results_data, cursor
+            )
+            return True
 
         try:
             # KeirinDataAccessor の execute_in_transaction を使用
@@ -1014,18 +923,11 @@ class Step5Saver:
             )
             return True
 
-        def _save_reports_in_transaction(conn):  # 引数を conn (connection object) に
-            actual_cursor = None  # 実際のカーソルオブジェクトを格納する変数を初期化
-            try:
-                actual_cursor = conn.cursor(dictionary=True)  # conn からカーソルを取得
-                self._save_inspection_reports_batch_with_cursor(
-                    race_id,
-                    inspection_reports_data,
-                    actual_cursor,  # 生成したカーソルを渡す
-                )
-            finally:
-                if actual_cursor:
-                    actual_cursor.close()  # カーソルをクローズ
+        def _save_reports_in_transaction(conn, cursor):
+            self._save_inspection_reports_batch_with_cursor(
+                race_id, inspection_reports_data, cursor
+            )
+            return True
 
         try:
             self.accessor.execute_in_transaction(_save_reports_in_transaction)
@@ -1053,16 +955,11 @@ class Step5Saver:
             )
             return True  # データがない場合は成功扱い
 
-        def _save_comments_in_transaction(conn):
-            actual_cursor = None
-            try:
-                actual_cursor = conn.cursor(dictionary=True)
-                self._save_race_comments_batch_with_cursor(
-                    race_id, race_comments_data, actual_cursor
-                )
-            finally:
-                if actual_cursor:
-                    actual_cursor.close()
+        def _save_comments_in_transaction(conn, cursor):
+            self._save_race_comments_batch_with_cursor(
+                race_id, race_comments_data, cursor
+            )
+            return True
 
         try:
             self.accessor.execute_in_transaction(_save_comments_in_transaction)
@@ -1088,17 +985,10 @@ class Step5Saver:
             self.logger.info("保存する周回位置データがありません。")
             return True  # データがない場合は成功扱い
 
-        def _save_laps_in_transaction(conn):
-            cursor = None
-            try:
-                cursor = conn.cursor(dictionary=True)
-                # _save_lap_positions_batch_with_cursor はこの形式のデータを期待している
-                self._save_lap_positions_batch_with_cursor(
-                    all_lap_data_for_saver, cursor
-                )
-            finally:
-                if cursor:
-                    cursor.close()
+        def _save_laps_in_transaction(conn, cursor):
+            # _save_lap_positions_batch_with_cursor はこの形式のデータを期待している
+            self._save_lap_positions_batch_with_cursor(all_lap_data_for_saver, cursor)
+            return True
 
         try:
             self.accessor.execute_in_transaction(_save_laps_in_transaction)

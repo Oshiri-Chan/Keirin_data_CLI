@@ -147,6 +147,22 @@ class Step3Saver:
         else:
             return 0
 
+    def _get_existing_cup_ids(self, conn=None, cursor=None) -> set[str]:
+        """cups テーブルに存在する cup_id のセットを取得する。既存カーソル/接続を利用可能。"""
+        query = "SELECT cup_id FROM cups"
+        try:
+            results = self.accessor.execute_query(
+                query,
+                existing_conn=conn,
+                existing_cursor=cursor,
+            )
+            if results:
+                return {str(row["cup_id"]) for row in results}
+            return set()
+        except Exception as e:
+            self.logger.warning(f"既存の cup_id の取得に失敗しました: {e}")
+            return set()
+
     def save_players_batch(
         self,
         players_data_list: List[Dict[str, Any]],
@@ -465,6 +481,8 @@ class Step3Saver:
         skipped_count_total = 0
         all_batches_successful = True
 
+        existing_cup_ids: set[str] = self._get_existing_cup_ids()
+
         for i in range(0, len(player_records_data_list), batch_size):
             batch = player_records_data_list[i : i + batch_size]
             batch_values = []
@@ -480,6 +498,14 @@ class Step3Saver:
                     continue
 
                 # MySQLのplayer_recordsテーブル構造に合わせてデータを変換
+                prev_cup_id_raw = record_data.get("previous_cup_id")
+                prev_cup_id: Optional[str] = (
+                    str(prev_cup_id_raw) if prev_cup_id_raw else None
+                )
+                if prev_cup_id and prev_cup_id not in existing_cup_ids:
+                    # FKを満たさない場合はNULLに落とす
+                    prev_cup_id = None
+
                 processed_data = [
                     race_id,  # race_id
                     player_id,  # player_id（Step3Updaterで整形されたキー）
@@ -514,7 +540,7 @@ class Step3Saver:
                     ),  # modified_gear_ratio_str
                     record_data.get("gear_ratio_str"),  # gear_ratio_str
                     record_data.get("race_point_str"),  # race_point_str
-                    record_data.get("previous_cup_id"),  # previous_cup_id
+                    prev_cup_id,  # previous_cup_id（存在しない場合はNULL）
                 ]
                 batch_values.append(processed_data)
 
@@ -820,11 +846,9 @@ class Step3Saver:
             self.logger.info("更新対象のレースIDがありません (Step3ステータス)。")
             return
 
-        def _update_status_in_transaction(conn):
-            cursor = None
+        def _update_status_in_transaction(conn, cursor):
             updated_count = 0
             try:
-                cursor = conn.cursor(dictionary=True)
                 for race_id in race_ids:
                     lock_query = "SELECT race_id, step3_status FROM race_status WHERE race_id = %s FOR UPDATE"
                     locked_row = self.accessor.execute_query_for_update(
@@ -861,8 +885,7 @@ class Step3Saver:
                         )
                 return updated_count
             finally:
-                if cursor:
-                    cursor.close()
+                pass
 
         try:
             num_updated = self.accessor.execute_in_transaction(
@@ -1264,6 +1287,8 @@ class Step3Saver:
         skipped_count_total = 0
         all_batches_successful = True  # バッチ全体の成否を管理
 
+        existing_cup_ids: set[str] = self._get_existing_cup_ids(conn, cursor)
+
         for i in range(0, len(player_records_data_list), batch_size):
             batch_data_from_updater = player_records_data_list[i : i + batch_size]
             to_save_in_batch = []
@@ -1277,6 +1302,13 @@ class Step3Saver:
                     )
                     current_batch_skipped_count += 1
                     continue
+
+                prev_cup_id_raw = record_data.get("previous_cup_id")
+                prev_cup_id: Optional[str] = (
+                    str(prev_cup_id_raw) if prev_cup_id_raw else None
+                )
+                if prev_cup_id and prev_cup_id not in existing_cup_ids:
+                    prev_cup_id = None
 
                 data = {
                     "race_id": race_id,
@@ -1312,11 +1344,7 @@ class Step3Saver:
                     ),
                     "gear_ratio_str": str(record_data.get("gear_ratio_str", "")),
                     "race_point_str": str(record_data.get("race_point_str", "")),
-                    "previous_cup_id": (
-                        str(record_data.get("previous_cup_id", ""))
-                        if record_data.get("previous_cup_id")
-                        else None
-                    ),
+                    "previous_cup_id": prev_cup_id,
                 }
                 to_save_in_batch.append(data)
 

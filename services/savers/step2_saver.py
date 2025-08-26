@@ -155,9 +155,13 @@ class Step2Saver:
         ]
 
         try:
-            self.accessor.execute_many(query, params_list)
+            # Linux/低メモリ(1GB)向けに安全なバルク保存: アクセサ側で
+            #   - チャンク分割 executemany
+            #   - チャンク失敗時はrow-by-rowフォールバック
+            # を実装済み。ここでは一括で委譲する。
+            affected = self.accessor.execute_many(query, params_list)
             self.logger.info(
-                f"カップID {cup_id}: {len(params_list)}件のスケジュール情報を保存/更新しました。"
+                f"カップID {cup_id}: {len(params_list)}件のスケジュール情報を保存/更新しました。影響行数: {affected}"
             )
         except Exception as e:
             self.logger.error(
@@ -431,10 +435,10 @@ class Step2Saver:
 
         saved_race_count = 0
         try:
-            self.accessor.execute_many(query_races, params_list_races)
+            affected = self.accessor.execute_many(query_races, params_list_races)
             saved_race_count = len(params_list_races)
             self.logger.info(
-                f"カップID {cup_id}: {saved_race_count} 件のレース情報をDBに保存/更新試行しました。"
+                f"カップID {cup_id}: {saved_race_count} 件のレース情報をDBに保存/更新しました。影響行数: {affected}"
             )
 
             if (

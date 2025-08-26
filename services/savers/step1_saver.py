@@ -73,12 +73,26 @@ class Step1Saver:
         """
         params_list = [(data["region_id"], data["region_name"]) for data in to_save]
 
+        self.logger.info(f"地域情報保存開始: {len(params_list)}件のデータ")
+        self.logger.debug(
+            f"地域情報データ例: {params_list[:2] if params_list else 'なし'}"
+        )
+        self.logger.debug(f"使用クエリ: {query}")
+
         try:
-            self.accessor.execute_many(query, params_list)
-            self.logger.info(f"{len(params_list)}件の地域情報を保存/更新しました。")
+            self.logger.info("execute_many実行中...")
+            affected = self.accessor.execute_many(query, params_list)
+            self.logger.info(f"execute_many完了! 影響行数: {affected}")
+            self.logger.info("地域情報の保存処理が正常に完了しました。")
         except Exception as e:
-            self.logger.error(f"地域情報の保存中にエラー: {e}", exc_info=True)
-            raise  # エラーを再送出
+            self.logger.error(
+                f"地域情報の保存中にエラーが発生しました: {e}", exc_info=True
+            )
+            self.logger.error(f"失敗したクエリ: {query}")
+            self.logger.error(
+                f"失敗したデータ: {params_list[:3] if params_list else 'なし'}"
+            )
+            raise
 
     def save_venues_batch(self, venues_data: List[Dict[str, Any]]):
         """
@@ -180,10 +194,14 @@ class Step1Saver:
             params_list.append(tuple(data_dict.get(col) for col in cols))
 
         try:
-            self.accessor.execute_many(query, params_list)
-            self.logger.info(f"{len(params_list)}件の会場情報を保存/更新しました。")
+            affected = self.accessor.execute_many(query, params_list)
+            self.logger.info(
+                f"会場情報の保存処理が正常に完了しました。影響行数: {affected}"
+            )
         except Exception as e:
-            self.logger.error(f"会場情報の保存中にエラー: {e}", exc_info=True)
+            self.logger.error(
+                f"会場情報の保存中にエラーが発生しました: {e}", exc_info=True
+            )
             raise
 
     def save_cups_batch(self, cups_data: List[Dict[str, Any]]):
@@ -284,10 +302,14 @@ class Step1Saver:
             params_list.append(tuple(data_dict.get(col) for col in cols))
 
         try:
-            self.accessor.execute_many(query, params_list)
-            self.logger.info(f"{len(params_list)}件のカップ情報を保存/更新しました。")
+            affected = self.accessor.execute_many(query, params_list)
+            self.logger.info(
+                f"カップ情報の保存処理が正常に完了しました。影響行数: {affected}"
+            )
         except Exception as e:
-            self.logger.error(f"カップ情報の保存中にエラー: {e}", exc_info=True)
+            self.logger.error(
+                f"カップ情報の保存中にエラーが発生しました: {e}", exc_info=True
+            )
             raise
 
     def _format_date(self, date_str: Any) -> Optional[str]:

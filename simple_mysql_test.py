@@ -6,63 +6,85 @@
 """
 
 import mysql.connector
-from utils.config_manager import get_config_manager
+import sys
+import traceback
 
 
-def main():
-    print("🔍 シンプルMySQL接続テスト開始...")
-
+def test_mysql_simple():
+    """シンプルなMySQL接続テスト"""
     try:
-        config = get_config_manager()
+        print("=== MySQL接続テスト開始 ===")
 
-        # 設定値取得
-        host = config.get_value("MySQL", "host")
-        port = config.get_int("MySQL", "port")
-        user = config.get_value("MySQL", "user")
-        password = config.get_value("MySQL", "password")
-        database = config.get_value("MySQL", "database")
+        # 設定値（config.iniと同じ）
+        config = {
+            "host": "127.0.0.1",
+            "user": "root",
+            "password": "asasa2525",
+            "database": "keirin_data_db",
+            "port": 3306,
+            "connection_timeout": 10,
+            "autocommit": True,
+        }
 
-        print(f"📋 接続先: {host}:{port}/{database} (user: {user})")
+        print(f"接続先: {config['host']}:{config['port']}")
+        print(f"データベース: {config['database']}")
+        print(f"ユーザー: {config['user']}")
 
-        # 直接接続テスト
-        connection = mysql.connector.connect(
-            host=host,
-            port=port,
-            user=user,
-            password=password,
-            database=database,
-            charset="utf8mb4",
-            collation="utf8mb4_unicode_ci",
-        )
+        # 接続試行
+        print("\n接続を試行中...")
+        connection = mysql.connector.connect(**config)
 
-        print("✅ MySQL接続成功")
+        print("✓ 接続成功！")
 
-        # 基本クエリテスト
+        # カーソル作成
         cursor = connection.cursor(dictionary=True)
-        cursor.execute("SELECT VERSION() as version")
-        result = cursor.fetchone()
-        print(f"📊 MySQLバージョン: {result['version']}")
 
-        # テーブル数確認
-        cursor.execute(
-            "SELECT COUNT(*) as count FROM information_schema.tables WHERE table_schema = %s",
-            (database,),
-        )
+        # 簡単なクエリ実行
+        print("\nテストクエリを実行中...")
+        cursor.execute("SELECT 1 as test_value, NOW() as `current_time`")
         result = cursor.fetchone()
-        print(f"📋 テーブル数: {result['count']}")
 
+        print(f"✓ クエリ実行成功: {result}")
+
+        # データベース情報の確認
+        cursor.execute("SELECT DATABASE() as current_db")
+        db_result = cursor.fetchone()
+        print(f"✓ 現在のデータベース: {db_result}")
+
+        # テーブル一覧の取得
+        cursor.execute("SHOW TABLES")
+        tables = cursor.fetchall()
+        print(f"✓ テーブル数: {len(tables)}")
+        if tables:
+            print("  テーブル一覧:")
+            for table in tables[:5]:  # 最初の5つだけ表示
+                table_name = (
+                    list(table.values())[0] if isinstance(table, dict) else str(table)
+                )
+                print(f"    - {table_name}")
+            if len(tables) > 5:
+                print(f"    ... and {len(tables) - 5} more")
+
+        # 接続クローズ
         cursor.close()
         connection.close()
 
-        print("🎉 シンプル接続テスト完了!")
-        return 0
+        print("\n=== MySQL接続テスト完了 ===")
+        return True
+
+    except mysql.connector.Error as err:
+        print(f"\n✗ MySQL接続エラー: {err}")
+        print(f"エラーコード: {err.errno}")
+        print(f"SQLステート: {err.sqlstate}")
+        return False
 
     except Exception as e:
-        print(f"❌ 接続エラー: {e}")
-        return 1
+        print(f"\n✗ 予期しないエラー: {e}")
+        print("\nスタックトレース:")
+        traceback.print_exc()
+        return False
 
 
 if __name__ == "__main__":
-    import sys
-
-    sys.exit(main())
+    success = test_mysql_simple()
+    sys.exit(0 if success else 1)

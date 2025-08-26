@@ -172,21 +172,24 @@ class Step3Updater:
         # --- 処理対象レースのフィルタリング (終了済みレースのスキップ) ---
         active_races_to_fetch_api: List[Dict[str, Any]] = []
         if race_ids_processed_input:
-            try:
-                # Step3Saver に get_race_statuses が実装されている前提
-                current_race_main_statuses = self.saver.get_race_statuses(
-                    list(race_ids_processed_input)
-                )
-            except AttributeError:
-                self.logger.error(
-                    "[Step3 Updater] self.saver に get_race_statuses メソッドが存在しません。レースステータス確認をスキップします。"
-                )
-                current_race_main_statuses = {}
-            except Exception as e:
-                self.logger.error(
-                    f"[Step3 Updater] レースの主ステータス取得中にエラー: {e}",
-                    exc_info=True,
-                )
+            # 強制更新時はステータス取得を省略してDBアクセスを避ける
+            if not force_update:
+                try:
+                    current_race_main_statuses = self.saver.get_race_statuses(
+                        list(race_ids_processed_input)
+                    )
+                except AttributeError:
+                    self.logger.error(
+                        "[Step3 Updater] self.saver に get_race_statuses メソッドが存在しません。レースステータス確認をスキップします。"
+                    )
+                    current_race_main_statuses = {}
+                except Exception as e:
+                    self.logger.error(
+                        f"[Step3 Updater] レースの主ステータス取得中にエラー: {e}",
+                        exc_info=True,
+                    )
+                    current_race_main_statuses = {}
+            else:
                 current_race_main_statuses = {}
 
             for race_info in races_to_process:
@@ -197,7 +200,7 @@ class Step3Updater:
                     )
                     continue
 
-                # force_update が True の場合は、ステータスチェックをスキップして常に処理対象とする
+                # force_update=True ではステータスチェックをスキップ
                 if not force_update:
                     main_status = current_race_main_statuses.get(race_id)
                     if main_status and main_status in FINISHED_RACE_STATUSES:

@@ -709,10 +709,8 @@ class Step4Saver:
             )
             raise TypeError("Accessor is not a KeirinDataAccessor instance.")
 
-        def _save_in_transaction(conn):
-            cursor = None
+        def _save_in_transaction(conn, cursor):
             try:
-                cursor = conn.cursor(dictionary=True)
                 self.logger.info(
                     f"レースID {race_id}: オッズデータの保存を開始します（トランザクション内）。"
                 )
@@ -758,9 +756,6 @@ class Step4Saver:
                     exc_info=True,
                 )
                 raise
-            finally:
-                if cursor:
-                    cursor.close()
 
         try:
             return self.accessor.execute_in_transaction(_save_in_transaction)
@@ -780,11 +775,9 @@ class Step4Saver:
             self.logger.info("更新対象のレースIDがありません (Step4ステータス)。")
             return
 
-        def _update_status_in_transaction(conn):
-            cursor = None
+        def _update_status_in_transaction(conn, cursor):
             updated_count = 0
             try:
-                cursor = conn.cursor(dictionary=True)
                 for race_id in race_ids:
                     lock_query = "SELECT race_id, step4_status FROM race_status WHERE race_id = %s FOR UPDATE"
                     locked_row = self.accessor.execute_query_for_update(
@@ -821,8 +814,7 @@ class Step4Saver:
                         )
                 return updated_count
             finally:
-                if cursor:
-                    cursor.close()
+                pass
 
         try:
             num_updated = self.accessor.execute_in_transaction(

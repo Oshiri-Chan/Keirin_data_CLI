@@ -40,10 +40,10 @@ class KeirinDataAccessor:
             self.logger.error("MySQL設定のロードに失敗しました。処理を続行できません。")
             raise ValueError("MySQL設定のロード失敗")
 
-        # 接続プールの設定
-        self.pool_name = self.mysql_config.pop("pool_name", "keirin_pool")
+        # 接続プールの設定（元の設定辞書は変更しない）
+        self.pool_name = self.mysql_config.get("pool_name", "keirin_pool")
         self.pool_size = int(
-            self.mysql_config.pop("pool_size", 5)
+            self.mysql_config.get("pool_size", 5)
         )  # configからpool_sizeを取得、なければデフォルト5
 
         # 一時的に接続プールを無効化（ハング問題の修正まで）
@@ -85,8 +85,10 @@ class KeirinDataAccessor:
         self.MAX_RETRY_ATTEMPTS = 3
         self.RETRY_DELAY_BASE = 0.5  # 基本待機時間（秒）
 
-        # ロック順序設定の読み込み
-        self.lock_order = self._load_lock_order_config(config_path)
+        # ロック順序設定の読み込み（一時的にスキップ）
+        # self.lock_order = self._load_lock_order_config(config_path)
+        self.lock_order = []
+        self.logger.info("ロック順序設定の読み込みを一時的にスキップしました")
 
     def _load_lock_order_config(self, main_config_path: str) -> List[str]:
         """deadrock.iniからロック順序設定を読み込む"""
@@ -205,12 +207,19 @@ class KeirinDataAccessor:
                 # 直接接続を作成（初期化時に読み込んだ設定を使用）
                 self.logger.debug("MySQL直接接続を作成します。")
 
-                # 初期化時に読み込んだ設定を使用（simple_mysql_test.pyと同じパラメータ）
+                # 初期化時に読み込んだ設定を使用（接続プール専用パラメータを除外）
                 config_for_direct = {
-                    **self.mysql_config,  # 初期化時に読み込んだ設定を使用
-                    "charset": "utf8mb4",
-                    "collation": "utf8mb4_unicode_ci",
+                    key: value
+                    for key, value in self.mysql_config.items()
+                    if key not in ["pool_name", "pool_size"]
                 }
+                config_for_direct.update(
+                    {
+                        "charset": "utf8mb4",
+                        "collation": "utf8mb4_unicode_ci",
+                        "autocommit": True,  # 自動コミットを有効化
+                    }
+                )
 
                 conn = mysql.connector.connect(**config_for_direct)
                 self.logger.info(
@@ -336,77 +345,62 @@ class KeirinDataAccessor:
     ) -> Any:
         """
         SQLクエリを実行し、結果を返す (MySQL用)。
-        このメソッド内で新しい接続とカーソルを作成・クローズする。
-        デッドロック発生時は自動的にリトライする。
+        シンプルな実装で安定性を重視。
         """
-
-        def _execute():
-            results = None
-            conn = None
-            cursor = None
-            try:
-                # 既存の接続とカーソルを使用する場合
-                if existing_conn and existing_cursor:
-                    conn = existing_conn
-                    cursor = existing_cursor
-                else:  # 新しい接続を取得
-                    conn = self._get_new_connection()
-                    cursor = conn.cursor(dictionary=dictionary, buffered=True)
-
-                self.logger.debug(
-                    f"クエリ実行 (新規接続): {query}, パラメータ: {params}"
+        conn = None
+        cursor = None
+        try:
+            # 既存の接続がある場合はそれを使用、なければ新しい直接接続を作成
+            if existing_conn and existing_cursor:
+                conn = existing_conn
+                cursor = existing_cursor
+            else:
+                self.logger.debug("MySQL直接接続を作成...")
+                conn = mysql.connector.connect(
+                    host=self.mysql_config.get("host", "127.0.0.1"),
+                    port=int(self.mysql_config.get("port", 3306)),
+                    user=self.mysql_config.get("user", "root"),
+                    password=self.mysql_config.get("password", ""),
+                    database=self.mysql_config.get("database", "keirin_data_db"),
+                    charset="utf8mb4",
+                    collation="utf8mb4_unicode_ci",
+                    autocommit=True,
+                    connection_timeout=10,
                 )
+                cursor = conn.cursor(dictionary=dictionary)
+
+            self.logger.debug(f"クエリ実行: {query}, パラメータ: {params}")
+            if params is None:
+                cursor.execute(query)
+            else:
                 cursor.execute(query, params)
 
-                if cursor.with_rows:  # 結果セットがあるクエリの場合 (主にSELECT)
-                    if fetch_one:
-                        results = cursor.fetchone()
-                    else:
-                        results = cursor.fetchall()
-                # INSERT/UPDATE/DELETE の場合は with_rows が False になることがある
-                # その場合、cursor.rowcount などで影響行数を取得可能
-                # ここでは結果セットの取得のみを主眼とする
+            results = None
+            if cursor.with_rows:
+                if fetch_one:
+                    results = cursor.fetchone()
+                else:
+                    results = cursor.fetchall()
 
-                self.logger.debug(f"クエリ成功: {query}")
-                return results
-            except mysql.connector.Error as err:
-                self.logger.error(
-                    f"クエリエラー: {err} (クエリ: {query}, パラメータ: {params})",
-                    exc_info=True,
-                )
-                if (
-                    conn and conn.is_connected()
-                ):  # エラー時もロールバックを試みる (autocommit=False のため)
-                    try:
-                        conn.rollback()
-                        self.logger.debug("エラー発生のためロールバックしました。")
-                    except mysql.connector.Error as rb_err:
-                        self.logger.error(f"ロールバック中にエラー: {rb_err}")
-                raise  # 元のエラーを再スロー
-            finally:
-                if cursor:
-                    # existing_cursor が指定されていない場合のみクローズ
-                    if not existing_cursor:
-                        try:
-                            cursor.close()
-                        except mysql.connector.Error as e_cur:
-                            self.logger.warning(
-                                f"カーソルクローズエラー(execute_query): {e_cur}"
-                            )
-                # conn が存在し、かつ existing_conn でない場合（つまり、この関数内で新規に取得した接続の場合）のみクローズ
-                if conn and not existing_conn and conn.is_connected():
-                    try:
-                        conn.close()
-                        self.logger.debug(
-                            "データベース接続(execute_query)をクローズしました。"
-                        )
-                    except mysql.connector.Error as e_conn:
-                        self.logger.warning(
-                            f"接続クローズエラー(execute_query): {e_conn}"
-                        )
+            self.logger.debug(
+                f"クエリ実行完了、結果数: {len(results) if results else 0}"
+            )
+            return results
 
-        # リトライ機構を使用して実行
-        return self._execute_with_retry(_execute, max_retries=self.MAX_RETRY_ATTEMPTS)
+        except mysql.connector.Error as e:
+            self.logger.error(f"execute_queryエラー: {e}", exc_info=True)
+            raise
+        finally:
+            if cursor and not existing_cursor:
+                try:
+                    cursor.close()
+                except Exception:
+                    pass
+            if conn and not existing_conn:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
 
     def execute_scalar(
         self,
@@ -434,91 +428,56 @@ class KeirinDataAccessor:
     ) -> int:
         """
         複数のSQLクエリを一括実行 (MySQL用)。
-        このメソッド内で新しい接続とカーソルを作成・クローズし、トランザクションも管理する。
-        デッドロック発生時は自動的にリトライする。
+        シンプルな実装で安定性を重視。
         """
         if not params_list:
             self.logger.info("execute_many: パラメータリストが空です。")
             return 0
 
-        def _execute():
-            conn = None
-            cursor = None
-            affected_rows = 0
-            try:
-                if existing_conn and existing_cursor:
-                    conn = existing_conn
-                    cursor = existing_cursor
-                else:  # 新しい接続を取得
-                    conn = self._get_new_connection()
-                    cursor = (
-                        conn.cursor()
-                    )  # executemanyではdictionaryカーソルは通常不要
-
-                self.logger.debug(
-                    f"実行クエリ (many): {query}, パラメータ数: {len(params_list)}"
+        conn = None
+        cursor = None
+        try:
+            # 既存の接続がある場合はそれを使用、なければ新しい直接接続を作成
+            if existing_conn and existing_cursor:
+                conn = existing_conn
+                cursor = existing_cursor
+            else:
+                self.logger.debug("MySQL直接接続を作成...")
+                conn = mysql.connector.connect(
+                    host=self.mysql_config.get("host", "127.0.0.1"),
+                    port=int(self.mysql_config.get("port", 3306)),
+                    user=self.mysql_config.get("user", "root"),
+                    password=self.mysql_config.get("password", ""),
+                    database=self.mysql_config.get("database", "keirin_data_db"),
+                    charset="utf8mb4",
+                    collation="utf8mb4_unicode_ci",
+                    autocommit=True,
+                    connection_timeout=10,
                 )
-                # パラメータリストが大きい場合は一部のみログ出力
-                log_params_preview = params_list[:3]
-                if len(params_list) > 3:
-                    self.logger.debug(f"パラメータプレビュー: {log_params_preview}...")
-                else:
-                    self.logger.debug(f"パラメータ: {log_params_preview}")
+                cursor = conn.cursor()
 
-                cursor.executemany(query, params_list)
-                affected_rows = cursor.rowcount
+            self.logger.debug(
+                f"execute_many実行: {query}, パラメータ数: {len(params_list)}"
+            )
+            cursor.executemany(query, params_list)
+            row_count = cursor.rowcount
+            self.logger.debug(f"execute_many完了: {row_count}行処理")
+            return row_count
 
-                if not existing_conn:  # 既存の接続を使用していない場合のみコミット
-                    conn.commit()
-                    self.logger.info(
-                        f"クエリ (many) 正常終了、{affected_rows}行影響。コミットしました。"
-                    )
-                else:  # トランザクションの一部として実行された場合
-                    self.logger.info(
-                        f"クエリ (many) 正常終了、{affected_rows}行影響。(トランザクション内、コミットは外部で管理)"
-                    )
-
-                return affected_rows
-
-            except mysql.connector.Error as e:
-                self.logger.error(
-                    f"execute_manyエラー ({query[:100]}...): {e}", exc_info=True
-                )
-                if (
-                    not existing_conn and conn
-                ):  # エラー時かつ自動コミットモードならロールバック試行
-                    try:
-                        conn.rollback()
-                        self.logger.warning(
-                            "execute_manyエラーのためロールバックしました。"
-                        )
-                    except mysql.connector.Error as rb_err:
-                        self.logger.error(f"ロールバック試行中エラー: {rb_err}")
-                raise  # 元のエラーを再スロー
-            finally:
-                if cursor:
-                    # existing_cursor が指定されていない場合のみクローズ
-                    if not existing_cursor:
-                        try:
-                            cursor.close()
-                        except mysql.connector.Error as e_cur:
-                            self.logger.warning(
-                                f"カーソルクローズエラー(execute_many): {e_cur}"
-                            )
-                # conn が存在し、かつ existing_conn でない場合のみクローズ
-                if conn and not existing_conn and conn.is_connected():
-                    try:
-                        conn.close()
-                        self.logger.debug(
-                            "データベース接続(execute_many)をクローズしました。"
-                        )
-                    except mysql.connector.Error as e_conn:
-                        self.logger.warning(
-                            f"接続クローズエラー(execute_many): {e_conn}"
-                        )
-
-        # リトライ機構を使用して実行
-        return self._execute_with_retry(_execute, max_retries=self.MAX_RETRY_ATTEMPTS)
+        except mysql.connector.Error as e:
+            self.logger.error(f"execute_manyエラー: {e}", exc_info=True)
+            raise
+        finally:
+            if cursor and not existing_cursor:
+                try:
+                    cursor.close()
+                except Exception:
+                    pass
+            if conn and not existing_conn:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
 
     def execute_in_transaction(self, transaction_func, *args, **kwargs) -> Any:
         """
@@ -1085,3 +1044,71 @@ WHERE table_schema = DATABASE()
             # ここでconn.rollback()やconn.close()は行わない。
             raise
         # finally ブロックも不要 (接続とカーソルの管理は呼び出し元)
+
+    def test_connection(self) -> bool:
+        """
+        データベース接続をテストして確実に接続できることを確認
+
+        Returns:
+            bool: 接続成功時True、失敗時False
+        """
+        try:
+            self.logger.info("MySQL接続をテストしています...")
+            self.logger.debug(
+                f"接続設定: host={self.mysql_config.get('host')}, port={self.mysql_config.get('port')}, database={self.mysql_config.get('database')}"
+            )
+
+            conn = mysql.connector.connect(
+                host=self.mysql_config.get("host", "127.0.0.1"),
+                port=int(self.mysql_config.get("port", 3306)),
+                user=self.mysql_config.get("user", "root"),
+                password=self.mysql_config.get("password", ""),
+                database=self.mysql_config.get("database", "keirin_data_db"),
+                charset="utf8mb4",
+                collation="utf8mb4_unicode_ci",
+                autocommit=True,
+                connection_timeout=3,  # 3秒に短縮
+                raise_on_warnings=False,
+            )
+
+            self.logger.debug("接続成功、クエリをテスト中...")
+            # 簡単なクエリでテスト
+            cursor = conn.cursor()
+            cursor.execute("SELECT 1")
+            result = cursor.fetchone()
+
+            cursor.close()
+            conn.close()
+
+            self.logger.info(f"MySQL接続テスト成功: {result}")
+            return True
+
+        except Exception as e:
+            self.logger.error(f"MySQL接続テスト失敗: {e}")
+            return False
+
+    def ensure_connection(self) -> bool:
+        """
+        接続を確保し、必要に応じて再接続を試行
+
+        Returns:
+            bool: 接続確保成功時True、失敗時False
+        """
+        max_retries = 3
+        for attempt in range(max_retries):
+            self.logger.info(
+                f"接続確保を試行しています... (試行 {attempt + 1}/{max_retries})"
+            )
+
+            if self.test_connection():
+                self.logger.info("接続が確保されました")
+                return True
+
+            if attempt < max_retries - 1:
+                self.logger.warning(f"接続失敗、{2 * (attempt + 1)}秒後に再試行します")
+                import time
+
+                time.sleep(2 * (attempt + 1))
+
+        self.logger.error("接続確保に失敗しました")
+        return False

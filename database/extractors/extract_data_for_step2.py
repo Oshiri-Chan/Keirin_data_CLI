@@ -34,6 +34,7 @@ class Step2DataExtractor:
             f"スレッド {thread_id}: ステップ2のデータ抽出を開始します (期間: {start_date} - {end_date}, 会場: {venue_codes}, 強制: {force_update_all})"
         )
 
+        # 本運用ロジックに復帰
         extracted_data = {
             "cup_ids_for_update": [],
             "existing_races": [],
@@ -58,25 +59,23 @@ class Step2DataExtractor:
                 # ステータス条件を追加（force_update_all が False の場合のみ）
                 status_condition = ""
                 if not force_update_all:
-                    # Step2で処理が必要なもの：レース基本情報が未取得、または不完全
-                    # race_status テーブルで step3_status が pending または NULL のものを対象
-                    status_condition = """
-                    AND EXISTS (
-                        SELECT 1 FROM schedules s 
-                        JOIN races r ON s.schedule_id = r.schedule_id 
-                        LEFT JOIN race_status rs ON r.race_id = rs.race_id
-                        WHERE s.cup_id = cups.cup_id 
-                        AND (rs.step3_status IS NULL OR rs.step3_status = 'pending')
+                    status_condition = (
+                        " AND EXISTS ("
+                        " SELECT 1 FROM schedules s"
+                        " JOIN races r ON s.schedule_id = r.schedule_id"
+                        " LEFT JOIN race_status rs ON r.race_id = rs.race_id"
+                        " WHERE s.cup_id = cups.cup_id"
+                        " AND (rs.step3_status IS NULL OR rs.step3_status = 'pending')"
+                        " )"
                     )
-                    """
 
-                cup_query = f"""
-                SELECT DISTINCT cup_id
-                FROM cups
-                WHERE (start_date BETWEEN %s AND %s) OR (end_date BETWEEN %s AND %s)
-                   OR (%s BETWEEN start_date AND end_date) OR (%s BETWEEN start_date AND end_date)
-                {status_condition}
-                """
+                cup_query = (
+                    "SELECT DISTINCT cup_id "
+                    "FROM cups "
+                    "WHERE (start_date BETWEEN %s AND %s) OR (end_date BETWEEN %s AND %s) "
+                    "   OR (%s BETWEEN start_date AND end_date) OR (%s BETWEEN start_date AND end_date)"
+                    f"{status_condition}"
+                )
                 # パラメータをタプルで渡す
                 cup_params = (
                     start_date,
