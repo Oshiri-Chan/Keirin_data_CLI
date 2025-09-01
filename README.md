@@ -1,6 +1,6 @@
 # 競輪データ更新ツール
 
-競輪のレース情報、オッズ、結果、周回データなどを取得して保存するツールです。GUIモードとコマンドラインモードの両方をサポートしています。
+競輪のレース情報、オッズ、結果、周回データなどを取得して保存するコマンドラインツールです。
 
 ## 機能
 
@@ -25,63 +25,71 @@ pip install -r requirements.txt
 
 ## 使い方
 
-### GUIモード（従来通り）
+### コマンドラインの基本
 
-```bash
-# GUIモードで起動
-python main.py
-```
-
-### コマンドラインモード（NEW）
+- 利用可能なコマンド: `update` / `status` / `config` / `export` / `deploy`
 
 #### 基本構文
 ```bash
-python main.py --mode [モード] [オプション]
+python main.py <command> [options]
 ```
 
-#### よく使用されるコマンド
+#### よく使う例（update）
 
 ```bash
-# 通常の更新（前後2日分、全ステップ）
-python main.py --mode check_update --step1 1 --step2 1 --step3 1 --step4 1 --step5 1
+# 通常の更新（前後2日分）、ステップ1のみ実行
+python main.py update --mode check-range --step 1
 
-# 期間指定更新
-python main.py --mode period --start-date 2024-01-01 --end-date 2024-01-31 --step1 1 --step2 1 --step3 1 --step4 1 --step5 1
+# 期間指定更新（2024-01-01〜2024-01-31）、ステップ3のみ
+python main.py update --mode period --start-date 2024-01-01 --end-date 2024-01-31 --step 3
 
-# セットアップ（全データ）
-python main.py --mode setup --step1 1 --step2 1 --step3 1 --step4 1 --step5 1 --force-update 1
+# 単日更新（当日。明示指定する場合は --date で指定）
+python main.py update --mode single-day --step 2
+python main.py update --mode single-day --date 2024-03-01 --step 2
 
-# ドライラン（確認のみ）
-python main.py --mode check_update --step1 1 --step2 1 --step3 1 --step4 1 --step5 1 --dry-run 1
+# セットアップ（2018年〜現在）。強制更新を無効化する場合
+python main.py update --mode setup --step 5 --no-force-update
+
+# 会場指定・並列数・ドライラン・デバッグを併用
+python main.py update --mode period --start-date 2024-01-01 --end-date 2024-01-07 \
+  --step 1 --venue-codes 01 02 03 --max-workers 10 --dry-run --debug
+
+# 全ステップを順に実行（Windows PowerShell）
+for ($i=1; $i -le 5; $i++) { python .\main.py update --mode check-range --step $i }
 ```
 
-#### クイック実行スクリプト
+#### update コマンドの主なオプション
 
-**Windows:**
+- `--mode`: `check-range` | `period` | `single-day` | `setup`
+- `--step`: 実行ステップ番号（必須）1〜5 のいずれか
+- `--start-date` / `--end-date`: 期間指定（`--mode period`）
+  - 未指定時は日本時間基準で自動設定（前日〜翌日）
+- `--date`: 単日指定（`--mode single-day`）
+  - 未指定時は日本時間の当日を自動設定
+- `--force-update` / `--no-force-update`: 強制更新の有効/無効（デフォルトは有効）
+- `--venue-codes`: 会場コードを複数指定可能（例: `01 02 03`）
+- `--max-workers`: 並列処理数
+- `--dry-run`: 実行せず処理内容のみ表示
+- `--debug`: 詳細ログを有効化
+
+#### その他のコマンド
+
+- `status`: システム状態確認
+  - `--database` / `--tables` / `--recent <days>`（デフォルト7）
+- `config`: 設定の確認・変更
+  - `--show` / `--set <KEY> <VALUE>` / `--test-connection`
+- `export`: データエクスポート
+  - `--format csv|json|sql` / `--table <NAME>` / `--output <PATH>` / `--start-date` / `--end-date`
+- `deploy`: DuckDB へデプロイ
+  - `--output <PATH>` / `--tables <NAME...>`
+
+ヘルプの表示:
 ```bash
-scripts\quick_update.bat
+python main.py --help
+python main.py update --help
 ```
 
-**Linux/macOS:**
-```bash
-./scripts/quick_update.sh
-```
-
-#### コマンドライン引数
-
-| 引数 | 説明 | 値 |
-|------|------|-----|
-| `--mode` | 更新モード | `check_update`, `period`, `setup` |
-| `--start-date` | 開始日（期間指定モード用） | `YYYY-MM-DD` |
-| `--end-date` | 終了日（期間指定モード用） | `YYYY-MM-DD` |
-| `--step1` ～ `--step5` | 各ステップの実行指定 | `0` (実行しない), `1` (実行する) |
-| `--force-update` | 強制更新モード | `0` (通常), `1` (強制更新) |
-| `--venue-codes` | 対象会場コード | 例: `01 02 03` |
-| `--debug` | デバッグモード | `0` (通常), `1` (詳細ログ) |
-| `--max-workers` | 並列処理数 | 数値 |
-| `--dry-run` | ドライランモード | `0` (実行), `1` (確認のみ) |
-
-詳細な使用方法は [docs/CLI_USAGE.md](docs/CLI_USAGE.md) を参照してください。
+補足: 付属のバッチ/シェルスクリプトは順次新CLIに対応予定です。直接コマンド実行を推奨します。
 
 ### 更新対象の設定
 
